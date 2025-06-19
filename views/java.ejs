@@ -1,0 +1,72 @@
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>SwagSMP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @font-face {
+            font-family: 'MyFont';
+            src: url('/MinecraftBold-nMK1.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        .text-border {
+            -webkit-text-stroke: 1px black;
+            text-shadow: 1px 1px 0 black,
+            -1px 1px 0 black,
+            1px -1px 0 black,
+            -1px -1px 0 black;
+        }
+    </style>
+</head>
+
+<body class="m-0 p-0 w-screen h-screen overflow-hidden relative font-['MyFont']">
+
+<!-- Background Image -->
+<img
+        src="/img/background.png"
+        alt="Background"
+        class="absolute top-0 left-0 w-screen h-screen object-cover pointer-events-none blur-sm select-none -z-10"
+/>
+
+<!-- Main Content -->
+<div class="flex items-center justify-start w-screen h-screen flex-col pt-12">
+
+    <!-- Title -->
+    <h1 class="text-white text-5xl md:text-6xl font-bold text-border drop-shadow-xl mb-10">
+        Java
+    </h1>
+
+    <!-- Form Card -->
+    <div class="bg-black bg-opacity-40 backdrop-blur-sm rounded-xl p-6 shadow-lg max-w-sm w-full">
+        <div>
+            <a href="https://id.twitch.tv/oauth2/authorize?client_id=<%= client_id %>&redirect_uri=<%= redirect_uri %>&response_type=token&scope=user:read:subscriptions&state=secureRandomString123"
+               class="w-full text-center rounded-md bg-purple-600 text-white px-4 py-2 text-sm font-bold hover:bg-purple-700 transition block mb-4">
+                Login with Twitch
+            </a>
+        </div>
+
+        <form class="text-white flex flex-col gap-4">
+            <div class="flex flex-col text-left">
+                <label class="text-lg " for="minecraft">Minecraft name:</label>
+                <input id="minecraft" type="text" placeholder="Enter Minecraft name"
+                       class="rounded-md text-black px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-purple-500"/>
+            </div>
+
+            <label class="flex items-center gap-2 text-sm text-left">
+                <input type="checkbox" class="accent-purple-500"/>
+                I am sure that my name is correct
+            </label>
+
+            <button
+                    class="w-fit self-center rounded-md bg-white text-black px-4 py-2 text-sm font-bold hover:bg-gray-200 transition">
+                Submit
+            </button>
+        </form>
+    </div>
+
+</div>
+</body>
+</html>

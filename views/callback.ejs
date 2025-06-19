@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SwagSMP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @font-face {
+            font-family: 'MyFont';
+            src: url('/MinecraftBold-nMK1.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        .text-border {
+            -webkit-text-stroke: 1px black; /* Stroke width and color */
+            text-shadow:
+                    1px 1px 0 black,
+                    -1px 1px 0 black,
+                    1px -1px 0 black,
+                    -1px -1px 0 black; /* Optional: boost cross-browser rendering */
+        }
+    </style>
+</head>
+<body class="m-0 p-6 w-screen h-screen overflow-hidden relative font-['MyFont'] bg-gray-900 text-white">
+
+<!-- Background -->
+<img
+        src="/img/background.png"
+        alt="Background"
+        class="absolute top-0 left-0 w-screen h-screen object-cover pointer-events-none blur-sm select-none -z-10"
+/>
+
+<div class="max-w-md mx-auto flex flex-col items-center pt-12 space-y-6">
+
+    <p id="worked_text" class="text-center text-lg font-semibold text-green-400 min-h-[2rem]"></p>
+
+    <h2 class="text-2xl md:text-3xl font-bold text-center mb-4 text-border drop-shadow-lg">
+        What edition of Minecraft do you play on?
+    </h2>
+
+    <!-- Edition Selection -->
+    <div id="main_content" class="flex flex-row gap-6">
+        <button id="btn_java" class="bg-purple-700 hover:bg-purple-800 transition rounded-md px-6 py-2 font-semibold">
+            Java
+        </button>
+        <span class="self-center font-semibold">or</span>
+        <button id="btn_bedrock" class="bg-blue-700 hover:bg-blue-800 transition rounded-md px-6 py-2 font-semibold">
+            Bedrock
+        </button>
+    </div>
+
+    <!-- Java Form -->
+    <div id="java_form_wrapper" class="hidden w-full bg-black bg-opacity-40 backdrop-blur-sm rounded-xl p-6 shadow-lg">
+        <form id="java_form" class="flex flex-col space-y-4">
+            <label class="flex flex-col text-white font-semibold text-lg">
+                Java Minecraft name
+                <input
+                        type="text"
+                        placeholder="Enter your Java username"
+                        class="mt-1 rounded-md px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        required
+                />
+            </label>
+
+            <label class="inline-flex items-center gap-2 text-sm">
+                <input type="checkbox" class="accent-purple-500" required />
+                I am sure that my name is correct
+            </label>
+
+            <button
+                    type="submit"
+                    class="self-center w-fit rounded-md bg-white text-black px-6 py-2 font-bold hover:bg-gray-200 transition"
+            >
+                Submit
+            </button>
+        </form>
+    </div>
+
+    <!-- Bedrock Form -->
+    <div id="bedrock_form_wrapper" class="hidden w-full bg-black bg-opacity-40 backdrop-blur-sm rounded-xl p-6 shadow-lg">
+        <form id="bedrock_form" class="flex flex-col space-y-4">
+            <p class="text-sm mb-2">
+                Step 1: Get your user "XUID (HEX)" from
+                <a href="https://www.cxkes.me/xbox/xuid" target="_blank" class="underline text-blue-400 hover:text-blue-600">
+                    www.cxkes.me/xbox/xuid
+                </a><br>
+                example: <img src="/img/example.png">
+            </p>
+
+
+            <label class="flex flex-col font-semibold text-white text-lg">
+                XUID (HEX)
+                <input
+                        type="text"
+                        placeholder="Enter your XUID"
+                        class="mt-1 rounded-md px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                />
+            </label>
+
+            <label class="inline-flex items-center gap-2 text-sm">
+                <input type="checkbox" class="accent-blue-500" required />
+                I am sure that my XUID (HEX) is correct
+            </label>
+
+            <button
+                    type="submit"
+                    class="self-center w-fit rounded-md bg-white text-black px-6 py-2 font-bold hover:bg-gray-200 transition"
+            >
+                Submit
+            </button>
+        </form>
+    </div>
+
+</div>
+
+<script>
+    const worked_text = document.getElementById('worked_text');
+    const main_content = document.getElementById('main_content');
+
+    const javaFormWrapper = document.getElementById('java_form_wrapper');
+    const bedrockFormWrapper = document.getElementById('bedrock_form_wrapper');
+
+    const btnJava = document.getElementById('btn_java');
+    const btnBedrock = document.getElementById('btn_bedrock');
+
+    // Twitch OAuth token parsing
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    let token = "<%= token %>";
+
+    // Edition button click handlers
+    btnJava.addEventListener('click', () => {
+        javaFormWrapper.classList.remove('hidden');
+        bedrockFormWrapper.classList.add('hidden');
+    });
+
+    btnBedrock.addEventListener('click', () => {
+        bedrockFormWrapper.classList.remove('hidden');
+        javaFormWrapper.classList.add('hidden');
+    });
+
+    // java form
+
+    const javaForm = document.getElementById('java_form');
+
+    javaForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const nameInput = javaForm.querySelector('input[type="text"]');
+        const checkbox = javaForm.querySelector('input[type="checkbox"]');
+
+        const minecraftName = nameInput.value.trim();
+        const isChecked = checkbox.checked;
+
+        if (!minecraftName || !isChecked) {
+            alert('Please enter your name and confirm it is correct.');
+            return;
+        }
+
+        if (!token) {
+            alert('Twitch token missing. Please log in with Twitch first.');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/java-entry', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    minecraft_name: minecraftName,
+                    twitch_token: token
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                worked_text.textContent = `Success: ${result.message || 'You’re now entered!'}`;
+                worked_text.classList.remove('text-red-400');
+                worked_text.classList.add('text-green-400');
+            } else {
+                throw new Error(result.error || 'Unknown error');
+            }
+        } catch (err) {
+            worked_text.textContent = `Error: ${err.message}`;
+            worked_text.classList.remove('text-green-400');
+            worked_text.classList.add('text-red-400');
+        }
+    });
+
+</script>
+</body>
+</html>
