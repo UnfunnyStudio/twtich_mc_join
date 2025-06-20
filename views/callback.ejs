@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en" >
+<html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title>SwagSMP</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -12,13 +12,13 @@
             font-weight: normal;
             font-style: normal;
         }
+
         .text-border {
             -webkit-text-stroke: 1px black; /* Stroke width and color */
-            text-shadow:
-                    1px 1px 0 black,
-                    -1px 1px 0 black,
-                    1px -1px 0 black,
-                    -1px -1px 0 black; /* Optional: boost cross-browser rendering */
+            text-shadow: 1px 1px 0 black,
+            -1px 1px 0 black,
+            1px -1px 0 black,
+            -1px -1px 0 black; /* Optional: boost cross-browser rendering */
         }
     </style>
 </head>
@@ -64,7 +64,7 @@
             </label>
 
             <label class="inline-flex items-center gap-2 text-sm">
-                <input type="checkbox" class="accent-purple-500" required />
+                <input type="checkbox" class="accent-purple-500" required/>
                 I am sure that my name is correct
             </label>
 
@@ -78,11 +78,13 @@
     </div>
 
     <!-- Bedrock Form -->
-    <div id="bedrock_form_wrapper" class="hidden w-full bg-black bg-opacity-40 backdrop-blur-sm rounded-xl p-6 shadow-lg">
+    <div id="bedrock_form_wrapper"
+         class="hidden w-full bg-black bg-opacity-40 backdrop-blur-sm rounded-xl p-6 shadow-lg">
         <form id="bedrock_form" class="flex flex-col space-y-4">
             <p class="text-sm mb-2">
                 Step 1: Get your user "XUID (HEX)" from
-                <a href="https://www.cxkes.me/xbox/xuid" target="_blank" class="underline text-blue-400 hover:text-blue-600">
+                <a href="https://www.cxkes.me/xbox/xuid" target="_blank"
+                   class="underline text-blue-400 hover:text-blue-600">
                     www.cxkes.me/xbox/xuid
                 </a><br>
                 example: <img src="/img/example.png">
@@ -100,7 +102,7 @@
             </label>
 
             <label class="inline-flex items-center gap-2 text-sm">
-                <input type="checkbox" class="accent-blue-500" required />
+                <input type="checkbox" class="accent-blue-500" required/>
                 I am sure that my XUID (HEX) is correct
             </label>
 
@@ -171,15 +173,30 @@
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ minecraft_name: minecraftName, twitch_token: token }),
+                body: JSON.stringify({minecraft_name: minecraftName, twitch_token: token}),
             });
             const result = await response.json();
 
             if (response.ok) {
-                if (result.subscribed) {
-                    document.body.innerHTML = `<div class="flex flex-col items-center justify-center w-screen h-screen text-white font-bold text-3xl">You have been added</div>`;
-                } else {
-                    document.body.innerHTML = `<div class="flex flex-col items-center justify-center w-screen h-screen text-white font-bold text-3xl">You have been registered, but you have not subscribed, so you cannot join the server</div>`;
+                if (response.ok) {
+                    if (result.subscribed) {
+                        document.body.innerHTML = `
+            <div class="flex flex-col items-center justify-center w-screen h-screen text-white font-bold text-3xl space-y-4">
+                <h1 class="text-4xl font-extrabold text-green-500">Thank you for subscribing!</h1>
+                <p class="text-xl">We can't wait to see you on the server.</p>
+                <div class="bg-gray-800 rounded p-3 mt-3 text-center">
+                    <span class="text-lg">Server IP: <span class="font-mono text-yellow-300">swagcharhar.com</span></span>
+                </div>
+            </div>
+        `;
+                    } else {
+                        document.body.innerHTML = `
+            <div class="flex flex-col items-center justify-center w-screen h-screen text-white font-bold text-3xl space-y-4">
+                <h1 class="text-3xl font-extrabold text-red-500">You have been registered, but you have not subscribed</h1>
+                <p class="text-lg">If you subscribe to <span class="text-yellow-300">unfunnyttv</span> or <span class="text-yellow-300">swag_charhar</span>, it can take up to an hour for your registration to be activated and for you to be able to join the server.</p>
+            </div>
+        `;
+                    }
                 }
             } else {
                 worked_text.textContent = `Error: ${result.error || 'Unknown error'}`;
@@ -232,22 +249,31 @@
         try {
             const response = await fetch('/api/bedrock-entry', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bedrock_uuid: bedrockUUID, twitch_token: token }),
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({bedrock_uuid: bedrockUUID, twitch_token: token}),
             });
 
             const result = await response.json();
 
             if (response.ok) {
                 if (result.subscribed) {
-                    document.body.innerHTML = `<div class="flex flex-col items-center justify-center w-screen h-screen text-white font-bold text-3xl">You have been added</div>`;
+                    document.body.innerHTML = `
+            <div class="flex flex-col items-center justify-center w-screen h-screen text-white font-bold text-3xl space-y-4">
+                <h1 class="text-4xl font-extrabold text-green-500">Thank you for subscribing!</h1>
+                <p class="text-xl">We can't wait to see you on the server.</p>
+                <div class="bg-gray-800 rounded p-3 mt-3 text-center">
+                    <span class="text-lg">Server IP: <span class="font-mono text-yellow-300">swagcharhar.com</span></span>
+                </div>
+            </div>
+        `;
                 } else {
-                    document.body.innerHTML = `<div class="flex flex-col items-center justify-center w-screen h-screen text-white font-bold text-3xl">You have been registered, but you have not subscribed, so you cannot join the server</div>`;
+                    document.body.innerHTML = `
+            <div class="flex flex-col items-center justify-center w-screen h-screen text-white font-bold text-3xl space-y-4">
+                <h1 class="text-3xl font-extrabold text-red-500">You have been registered, but you have not subscribed</h1>
+                <p class="text-lg">If you subscribe to <span class="text-yellow-300">unfunnyttv</span> or <span class="text-yellow-300">swag_charhar</span>, it can take up to an hour for your registration to be activated and for you to be able to join the server.</p>
+            </div>
+        `;
                 }
-            } else {
-                worked_text.textContent = `Error: ${result.error || 'Unknown error'}`;
-                worked_text.classList.remove('text-yellow-400');
-                worked_text.classList.add('text-red-400');
             }
         } catch (err) {
             worked_text.textContent = `Error: ${err.message}`;
