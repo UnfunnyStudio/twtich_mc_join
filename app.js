@@ -73,26 +73,35 @@ app.get("/auth/twitch/callback", async (req, res) => {
 });
 
 app.post("/api/java-entry", async (req, res) => {
-    const {minecraft_name, twitch_token} = req.body;
+    const { minecraft_name, twitch_token } = req.body;
+
     if (!minecraft_name || !twitch_token) {
-        return res.status(400).json({error: 'Missing required fields'});
+        return res.status(400).json({ error: 'Missing required fields' });
     }
+
     const player_data = await fetchJSON(`https://api.mojang.com/users/profiles/minecraft/${minecraft_name}`);
-    if (!player_data?.id) return res.status(400).json({error: 'Invalid player name'});
+    if (!player_data?.id) {
+        return res.status(400).json({ error: 'Invalid player name' });
+    }
 
     const is_subed_data = await CheckIfSubedTo(twitch_token, ["unfunnyttv", "swag_charhar"]);
-
+    is_subed_data.is_a_sub = false;
     const sql = `UPDATE twitch_sub_whitelist SET minecraft_uuid=?, is_currently_subed=?, sub_tier=? WHERE twitch_token=?;`;
     dbConn.query(sql, [player_data.id, is_subed_data.is_a_sub, is_subed_data.tier, twitch_token], (err) => {
         if (err) {
             console.error("[DB ERROR]", err);
-            res.send("Database error, check logs");
+            res.status(500).json({ error: "Database error, check logs" });
             return;
         }
-    });
 
-    res.status(200).json({message: 'Entry received successfully'});
+        if (is_subed_data.is_a_sub) {
+            res.status(200).json({ message: "Entry received successfully", subscribed: true });
+        } else {
+            res.status(200).json({ message: "Registered, but not subscribed", subscribed: false });
+        }
+    });
 });
+
 
 async function refreshAccessToken(refresh_token) {
     const data = await fetchJSON("https://id.twitch.tv/oauth2/token", {

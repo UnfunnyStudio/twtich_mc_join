@@ -116,40 +116,32 @@
 </div>
 
 <script>
+    // Elements
     const worked_text = document.getElementById('worked_text');
-    const main_content = document.getElementById('main_content');
-
+    const mainContent = document.getElementById('main_content');
     const javaFormWrapper = document.getElementById('java_form_wrapper');
     const bedrockFormWrapper = document.getElementById('bedrock_form_wrapper');
-
     const btnJava = document.getElementById('btn_java');
     const btnBedrock = document.getElementById('btn_bedrock');
+    const javaForm = document.getElementById('java_form');
+    const token = "<%= token %>"
 
-    // Twitch OAuth token parsing
-    const params = new URLSearchParams(window.location.hash.slice(1));
-    let token = "<%= token %>";
-
-    // Edition button click handlers
+    // Edition Button Handlers
     btnJava.addEventListener('click', () => {
         javaFormWrapper.classList.remove('hidden');
         bedrockFormWrapper.classList.add('hidden');
     });
-
     btnBedrock.addEventListener('click', () => {
         bedrockFormWrapper.classList.remove('hidden');
         javaFormWrapper.classList.add('hidden');
     });
 
-    // java form
-
-    const javaForm = document.getElementById('java_form');
-
+    // Java Form Submission
     javaForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const nameInput = javaForm.querySelector('input[type="text"]');
         const checkbox = javaForm.querySelector('input[type="checkbox"]');
-
         const minecraftName = nameInput.value.trim();
         const isChecked = checkbox.checked;
 
@@ -163,34 +155,51 @@
             return;
         }
 
+        // ✅ Enter Loading State
+        worked_text.textContent = 'Submitting...';
+        worked_text.classList.remove('text-red-400', 'text-green-400');
+        worked_text.classList.add('text-yellow-400');
+
+        // Disable Buttons and Inputs
+        btnJava.disabled = true;
+        btnBedrock.disabled = true;
+        Array.from(document.querySelectorAll('input, button')).forEach(el => el.disabled = true);
+
         try {
             const response = await fetch('/api/java-entry', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    minecraft_name: minecraftName,
-                    twitch_token: token
-                })
+                body: JSON.stringify({ minecraft_name: minecraftName, twitch_token: token }),
             });
-
             const result = await response.json();
 
             if (response.ok) {
-                worked_text.textContent = `Success: ${result.message || 'You’re now entered!'}`;
-                worked_text.classList.remove('text-red-400');
-                worked_text.classList.add('text-green-400');
+                if (result.subscribed) {
+                    document.body.innerHTML = `<div class="flex flex-col items-center justify-center w-screen h-screen text-white font-bold text-3xl">You have been added</div>`;
+                } else {
+                    document.body.innerHTML = `<div class="flex flex-col items-center justify-center w-screen h-screen text-white font-bold text-3xl">You have been registered, but you have not subscribed, so you cannot join the server</div>`;
+                }
             } else {
-                throw new Error(result.error || 'Unknown error');
+                worked_text.textContent = `Error: ${result.error || 'Unknown error'}`;
+                worked_text.classList.remove('text-yellow-400');
+                worked_text.classList.add('text-red-400');
+                // Re-enable buttons
+                btnJava.disabled = false;
+                btnBedrock.disabled = false;
+                Array.from(document.querySelectorAll('input, button')).forEach(el => el.disabled = false);
             }
         } catch (err) {
             worked_text.textContent = `Error: ${err.message}`;
-            worked_text.classList.remove('text-green-400');
+            worked_text.classList.remove('text-yellow-400');
             worked_text.classList.add('text-red-400');
+            // Re-enable Buttons
+            btnJava.disabled = false;
+            btnBedrock.disabled = false;
+            Array.from(document.querySelectorAll('input, button')).forEach(el => el.disabled = false);
         }
     });
-
 </script>
 </body>
 </html>
