@@ -200,6 +200,67 @@
             Array.from(document.querySelectorAll('input, button')).forEach(el => el.disabled = false);
         }
     });
+
+    // Bedrock Form Submission
+    const bedrockForm = document.getElementById('bedrock_form');
+    bedrockForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const xuidInput = bedrockForm.querySelector('input[type="text"]');
+        const checkbox = bedrockForm.querySelector('input[type="checkbox"]');
+        const bedrockUUID = xuidInput.value.trim();
+        const isChecked = checkbox.checked;
+
+        if (!bedrockUUID || !isChecked) {
+            alert('Please enter your XUID and confirm it is correct.');
+            return;
+        }
+
+        if (!token) {
+            alert('Twitch token missing. Please log in with Twitch first.');
+            return;
+        }
+
+        worked_text.textContent = 'Submitting...';
+        worked_text.classList.remove('text-red-400', 'text-green-400');
+        worked_text.classList.add('text-yellow-400');
+
+        btnJava.disabled = true;
+        btnBedrock.disabled = true;
+        Array.from(document.querySelectorAll('input, button')).forEach(el => el.disabled = true);
+
+        try {
+            const response = await fetch('/api/bedrock-entry', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bedrock_uuid: bedrockUUID, twitch_token: token }),
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                if (result.subscribed) {
+                    document.body.innerHTML = `<div class="flex flex-col items-center justify-center w-screen h-screen text-white font-bold text-3xl">You have been added</div>`;
+                } else {
+                    document.body.innerHTML = `<div class="flex flex-col items-center justify-center w-screen h-screen text-white font-bold text-3xl">You have been registered, but you have not subscribed, so you cannot join the server</div>`;
+                }
+            } else {
+                worked_text.textContent = `Error: ${result.error || 'Unknown error'}`;
+                worked_text.classList.remove('text-yellow-400');
+                worked_text.classList.add('text-red-400');
+            }
+        } catch (err) {
+            worked_text.textContent = `Error: ${err.message}`;
+            worked_text.classList.remove('text-yellow-400');
+            worked_text.classList.add('text-red-400');
+        }
+
+        // Re-enable elements
+        btnJava.disabled = false;
+        btnBedrock.disabled = false;
+        Array.from(document.querySelectorAll('input, button')).forEach(el => el.disabled = false);
+    });
+
 </script>
 </body>
 </html>

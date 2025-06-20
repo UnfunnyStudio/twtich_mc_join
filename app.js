@@ -102,6 +102,38 @@ app.post("/api/java-entry", async (req, res) => {
     });
 });
 
+app.post("/api/bedrock-entry", async (req, res) => {
+    let { bedrock_uuid, twitch_token } = req.body;
+
+    if (!bedrock_uuid || !twitch_token) {
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (!/^[0-9a-fA-F]{1,16}$/.test(bedrock_uuid)) {
+        return res.status(400).json({ error: 'Invalid XUID format' });
+    }
+    bedrock_uuid = "0000000000000000"+bedrock_uuid;
+
+    const is_subed_data = await CheckIfSubedTo(twitch_token, ["unfunnyttv", "swag_charhar"]);
+
+    const sql = `UPDATE twitch_sub_whitelist 
+                 SET bedrock_uuid=?, is_currently_subed=?, sub_tier=? 
+                 WHERE twitch_token=?;`;
+    dbConn.query(sql, [bedrock_uuid, is_subed_data.is_a_sub, is_subed_data.tier, twitch_token], (err) => {
+        if (err) {
+            console.error("[DB ERROR]", err);
+            res.status(500).json({ error: "Database error, check logs" });
+            return;
+        }
+
+        if (is_subed_data.is_a_sub) {
+            res.status(200).json({ message: "Entry received successfully", subscribed: true });
+        } else {
+            res.status(200).json({ message: "Registered, but not subscribed", subscribed: false });
+        }
+    });
+});
+
 
 async function refreshAccessToken(refresh_token) {
     const data = await fetchJSON("https://id.twitch.tv/oauth2/token", {
