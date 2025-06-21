@@ -90,7 +90,6 @@ app.post("/api/java-entry", async (req, res) => {
     }
 
     const is_subed_data = await CheckIfSubedTo(twitch_token, ["unfunnyttv", "swag_charhar"]);
-    is_subed_data.is_a_sub = false;
     const sql = `UPDATE twitch_sub_whitelist SET minecraft_uuid=?, is_currently_subed=?, sub_tier=? WHERE twitch_token=?;`;
     dbConn.query(sql, [player_data.id, is_subed_data.is_a_sub, is_subed_data.tier, twitch_token], (err) => {
         if (err) {
