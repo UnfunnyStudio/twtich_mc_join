@@ -16,11 +16,11 @@ function determineGuild(tiers) {
     const nofnTier = tiers["unfunnyttv"] || 0;
 
     if (swagTier === 3 && nofnTier === 1) {
-        return "swag";
+        return "§a[SWAG]§f";
     } else if (swagTier === 1 && nofnTier === 3) {
-        return "nofn";
+        return "§e[FUNNY]§f";
     } else {
-        return "neut";
+        return "§b[NOSIDE]§f";
     }
 }
 
