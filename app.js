@@ -10,6 +10,20 @@ app.use(express.json());
 const port = 3000;
 const redirect_uri = env.redirect_uri || "http://localhost:3000/auth/twitch/callback";
 
+// Determine guild based on subscription tiers
+function determineGuild(tiers) {
+    const swagTier = tiers["swag_charhar"] || 0;
+    const nofnTier = tiers["unfunnyttv"] || 0;
+
+    if (swagTier === 3 && nofnTier === 1) {
+        return "swag";
+    } else if (swagTier === 1 && nofnTier === 3) {
+        return "nofn";
+    } else {
+        return "neut";
+    }
+}
+
 async function fetchJSON(url, options) {
     const resp = await fetch(url, options);
     return resp.json();
@@ -23,7 +37,9 @@ async function getUserId(token) {
 }
 
 async function saveTokenToDb(userId, token, refreshToken, expiresAt, res) {
-    const sql = `INSERT INTO twitch_sub_whitelist (twitch_id, twitch_token, twitch_refresh_token, token_expires_epoc) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE twitch_token = VALUES(twitch_token), twitch_refresh_token = VALUES(twitch_refresh_token), token_expires_epoc = VALUES(token_expires_epoc)`;
+    const sql = `INSERT INTO twitch_sub_whitelist (twitch_id, twitch_token, twitch_refresh_token, token_expires_epoc)
+                 VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE twitch_token = VALUES(twitch_token), twitch_refresh_token = VALUES(twitch_refresh_token), token_expires_epoc = VALUES(token_expires_epoc)`;
     dbConn.query(sql, [userId, token, refreshToken, expiresAt], (err) => {
         if (err) {
             console.error("[DB ERROR]", err);
@@ -34,24 +50,32 @@ async function saveTokenToDb(userId, token, refreshToken, expiresAt, res) {
     });
 }
 
-async function CheckIfSubedTo(access_token, broadcaster_usernames) {
-    let is_a_sub = false, tier = 0;
+// Check subscription tiers by channel
+async function CheckSubsByChannel(access_token, broadcaster_usernames) {
     const user_id = await getUserId(access_token);
-    if (!user_id) return {is_a_sub, tier};
-    const idsQuery = broadcaster_usernames.map(u => `login=${u}`).join("&");
-    const data = await fetchJSON(`https://api.twitch.tv/helix/users?${idsQuery}`, {
-        headers: { "Authorization": `Bearer ${access_token}`, "Client-Id": env.client_id },
-    });
-    for (const broadcaster of data.data) {
-        const resp = await fetchJSON(`https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=${broadcaster.id}&user_id=${user_id}`, {
+    if (!user_id) return null;
+
+    const tiersByChannel = {};
+    for (const username of broadcaster_usernames) {
+        const userData = await fetchJSON(`https://api.twitch.tv/helix/users?login=${username}`, {
             headers: { "Authorization": `Bearer ${access_token}`, "Client-Id": env.client_id },
         });
-        if (resp.data?.[0]) {
-            is_a_sub = true;
-            tier = Math.max(tier, resp.data[0].tier / 1000);
+        const broadcaster = userData.data?.[0];
+        if (!broadcaster) {
+            tiersByChannel[username] = 0;
+            continue;
+        }
+
+        const subData = await fetchJSON(`https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=${broadcaster.id}&user_id=${user_id}`, {
+            headers: { "Authorization": `Bearer ${access_token}`, "Client-Id": env.client_id },
+        });
+        if (subData.data?.[0]) {
+            tiersByChannel[username] = subData.data[0].tier / 1000; // Convert 1000,2000,3000 to 1,2,3
+        } else {
+            tiersByChannel[username] = 0;
         }
     }
-    return {is_a_sub, tier};
+    return tiersByChannel;
 }
 
 app.get("/", (req, res) => res.render("index", {client_id: env.client_id, redirect_uri}));
@@ -59,7 +83,6 @@ app.get("/", (req, res) => res.render("index", {client_id: env.client_id, redire
 app.get("/help", (req, res) => {
     res.render("help");
 });
-
 
 app.get("/auth/twitch/callback", async (req, res) => {
     const code = req.query.code;
@@ -89,19 +112,27 @@ app.post("/api/java-entry", async (req, res) => {
         return res.status(400).json({ error: 'Invalid player name' });
     }
 
-    const is_subed_data = await CheckIfSubedTo(twitch_token, ["unfunnyttv", "swag_charhar"]);
-    const sql = `UPDATE twitch_sub_whitelist SET minecraft_uuid=?, is_currently_subed=?, sub_tier=? WHERE twitch_token=?;`;
-    dbConn.query(sql, [player_data.id, is_subed_data.is_a_sub, is_subed_data.tier, twitch_token], (err) => {
+    const tiersByChannel = await CheckSubsByChannel(twitch_token, ["unfunnyttv", "swag_charhar"]);
+    if (!tiersByChannel) return res.status(400).json({ error: "Invalid Twitch token or unable to fetch subscriptions" });
+
+    const is_a_sub = Object.values(tiersByChannel).some(t => t > 0);
+    const highestTier = Math.max(...Object.values(tiersByChannel));
+    const guild = determineGuild(tiersByChannel);
+
+    const sql = `UPDATE twitch_sub_whitelist 
+                 SET minecraft_uuid=?, is_currently_subed=?, sub_tier=?, guild=? 
+                 WHERE twitch_token=?;`;
+    dbConn.query(sql, [player_data.id, is_a_sub, highestTier, guild, twitch_token], (err) => {
         if (err) {
             console.error("[DB ERROR]", err);
             res.status(500).json({ error: "Database error, check logs" });
             return;
         }
 
-        if (is_subed_data.is_a_sub) {
-            res.status(200).json({ message: "Entry received successfully", subscribed: true });
+        if (is_a_sub) {
+            res.status(200).json({ message: "Entry received successfully", subscribed: true, guild });
         } else {
-            res.status(200).json({ message: "Registered, but not subscribed", subscribed: false });
+            res.status(200).json({ message: "Registered, but not subscribed", subscribed: false, guild });
         }
     });
 });
@@ -116,28 +147,32 @@ app.post("/api/bedrock-entry", async (req, res) => {
     if (!/^[0-9a-fA-F]{1,16}$/.test(bedrock_uuid)) {
         return res.status(400).json({ error: 'Invalid XUID format' });
     }
-    bedrock_uuid = "0000000000000000"+bedrock_uuid;
+    bedrock_uuid = "0000000000000000" + bedrock_uuid;
 
-    const is_subed_data = await CheckIfSubedTo(twitch_token, ["unfunnyttv", "swag_charhar"]);
+    const tiersByChannel = await CheckSubsByChannel(twitch_token, ["unfunnyttv", "swag_charhar"]);
+    if (!tiersByChannel) return res.status(400).json({ error: "Invalid Twitch token or unable to fetch subscriptions" });
+
+    const is_a_sub = Object.values(tiersByChannel).some(t => t > 0);
+    const highestTier = Math.max(...Object.values(tiersByChannel));
+    const guild = determineGuild(tiersByChannel);
 
     const sql = `UPDATE twitch_sub_whitelist 
-                 SET bedrock_uuid=?, is_currently_subed=?, sub_tier=? 
+                 SET bedrock_uuid=?, is_currently_subed=?, sub_tier=?, guild=? 
                  WHERE twitch_token=?;`;
-    dbConn.query(sql, [bedrock_uuid, is_subed_data.is_a_sub, is_subed_data.tier, twitch_token], (err) => {
+    dbConn.query(sql, [bedrock_uuid, is_a_sub, highestTier, guild, twitch_token], (err) => {
         if (err) {
             console.error("[DB ERROR]", err);
             res.status(500).json({ error: "Database error, check logs" });
             return;
         }
 
-        if (is_subed_data.is_a_sub) {
-            res.status(200).json({ message: "Entry received successfully", subscribed: true });
+        if (is_a_sub) {
+            res.status(200).json({ message: "Entry received successfully", subscribed: true, guild });
         } else {
-            res.status(200).json({ message: "Registered, but not subscribed", subscribed: false });
+            res.status(200).json({ message: "Registered, but not subscribed", subscribed: false, guild });
         }
     });
 });
-
 
 async function refreshAccessToken(refresh_token) {
     const data = await fetchJSON("https://id.twitch.tv/oauth2/token", {
@@ -161,7 +196,7 @@ async function refreshAccessToken(refresh_token) {
 }
 
 const update_is_subed = async () => {
-    const sql = `SELECT id, twitch_token, twitch_refresh_token, token_expires_epoc 
+    const sql = `SELECT id, twitch_token, twitch_refresh_token, token_expires_epoc
                  FROM twitch_sub_whitelist`;
     dbConn.query(sql, async (err, results) => {
         if (err) {
@@ -184,8 +219,8 @@ const update_is_subed = async () => {
 
                 // Save new tokens
                 dbConn.query(
-                    `UPDATE twitch_sub_whitelist 
-                     SET twitch_token=?, twitch_refresh_token=?, token_expires_epoc=? 
+                    `UPDATE twitch_sub_whitelist
+                     SET twitch_token=?, twitch_refresh_token=?, token_expires_epoc=?
                      WHERE id=?`,
                     [twitch_token, twitch_refresh_token, refreshed.expires_at, id],
                     (err) => {
@@ -194,13 +229,19 @@ const update_is_subed = async () => {
                 );
             }
 
-            // Check subscription status
-            const is_subed_data = await CheckIfSubedTo(twitch_token, ["unfunnyttv", "swag_charhar"]);
+            // Check subscription status with tiers
+            const tiersByChannel = await CheckSubsByChannel(twitch_token, ["unfunnyttv", "swag_charhar"]);
+            if (!tiersByChannel) continue; // Skip if invalid token or error
+
+            const is_a_sub = Object.values(tiersByChannel).some(t => t > 0);
+            const highestTier = Math.max(...Object.values(tiersByChannel));
+            const guild = determineGuild(tiersByChannel);
+
             dbConn.query(
-                `UPDATE twitch_sub_whitelist 
-                 SET is_currently_subed=?, sub_tier=? 
+                `UPDATE twitch_sub_whitelist
+                 SET is_currently_subed=?, sub_tier=?, guild=?
                  WHERE id=?`,
-                [is_subed_data.is_a_sub, is_subed_data.tier, id],
+                [is_a_sub, highestTier, guild, id],
                 (err) => {
                     if (err) {
                         console.error(`[DB ERROR] Could not update subscription status for id ${id}`, err);
@@ -212,6 +253,5 @@ const update_is_subed = async () => {
 };
 update_is_subed();
 setInterval(update_is_subed, 1000 * 60 * 60);
-
 
 app.listen(port, () => console.log(`App listening on port ${port}`));
