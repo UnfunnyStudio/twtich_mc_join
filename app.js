@@ -1,13 +1,20 @@
 import {env} from './jsonenv.js'
 import express from 'express'
-import {dbConn} from './db.js'
 import {
+    addNewUsersTokens,
     getIsUserSubTierFromDb,
     getListOfAllUsersTwitchDetails,
     getListOfStreamers, insertUserSubByTwitchAndStreamer,
-    removeUserSub, updateUserSubTierByTwitchAndStreamer
+    removeUserSub, updateMinecraftUuid, updateUserSubTierByTwitchAndStreamer
 } from "./src/dbCalls.js";
-import {checkSub, getStreamersIds} from "./src/twtich_side.js";
+import {
+    checkSub,
+    getStreamersIds,
+    getTwitchUsersData,
+    getTwitchUsersDataWithToken,
+    refreshAccessToken
+} from "./src/twtich_side.js";
+import {fetchJSON} from "./src/helpers.js";
 
 const app = express()
 app.set('view engine', 'ejs');
@@ -41,8 +48,9 @@ app.get("/auth/twitch/callback", async (req, res) => {
         })
     });
     const expiresAt = Date.now() + data.expires_in * 1000 - 10;
-    const userId = await getUserId(data.access_token);
-    await saveTokenToDb(userId, data.access_token, data.refresh_token, expiresAt, res);
+    const userId = (await getTwitchUsersDataWithToken(data.access_token)).id;
+    await addNewUsersTokens(userId, data.access_token, data.refresh_token, expiresAt);
+    res.render("callback", {token: data.access_token});
 });
 
 app.post("/api/java-entry", async (req, res) => {
@@ -57,32 +65,11 @@ app.post("/api/java-entry", async (req, res) => {
         return res.status(400).json({error: 'Invalid player name'});
     }
 
-    const tiersByChannel = await CheckSubsByChannel(twitch_token, ["unfunnyttv", "swag_charhar"]);
-    if (!tiersByChannel) return res.status(400).json({error: "Invalid Twitch token or unable to fetch subscriptions"});
+    console.log(await updateMinecraftUuid(player_data.id, twitch_token));
 
-    const is_a_sub = Object.values(tiersByChannel).some(t => t > 0);
-    const highestTier = Math.max(...Object.values(tiersByChannel));
-    const guild = determineGuild(tiersByChannel);
+    res.status(200).json({message: "Entry received successfully", subscribed: true});
 
-    const sql = `UPDATE twitch_sub_whitelist
-                 SET minecraft_uuid=?,
-                     is_currently_subed=?,
-                     sub_tier=?,
-                     guild=?
-                 WHERE twitch_token = ?;`;
-    dbConn.query(sql, [player_data.id, is_a_sub, highestTier, guild, twitch_token], (err) => {
-        if (err) {
-            console.error("[DB ERROR]", err);
-            res.status(500).json({error: "Database error, check logs"});
-            return;
-        }
 
-        if (is_a_sub) {
-            res.status(200).json({message: "Entry received successfully", subscribed: true, guild});
-        } else {
-            res.status(200).json({message: "Registered, but not subscribed", subscribed: false, guild});
-        }
-    });
 });
 
 app.post("/api/bedrock-entry", async (req, res) => {
@@ -97,34 +84,10 @@ app.post("/api/bedrock-entry", async (req, res) => {
     }
     bedrock_uuid = "0000000000000000" + bedrock_uuid;
 
-    const tiersByChannel = await CheckSubsByChannel(twitch_token, ["unfunnyttv", "swag_charhar"]);
-    if (!tiersByChannel) return res.status(400).json({error: "Invalid Twitch token or unable to fetch subscriptions"});
+    console.log(await updateMinecraftUuid(bedrock_uuid, twitch_token, true));
 
-    const is_a_sub = Object.values(tiersByChannel).some(t => t > 0);
-    const highestTier = Math.max(...Object.values(tiersByChannel));
-    const guild = determineGuild(tiersByChannel);
-
-    const sql = `UPDATE twitch_sub_whitelist
-                 SET bedrock_uuid=?,
-                     is_currently_subed=?,
-                     sub_tier=?,
-                     guild=?
-                 WHERE twitch_token = ?;`;
-    dbConn.query(sql, [bedrock_uuid, is_a_sub, highestTier, guild, twitch_token], (err) => {
-        if (err) {
-            console.error("[DB ERROR]", err);
-            res.status(500).json({error: "Database error, check logs"});
-            return;
-        }
-
-        if (is_a_sub) {
-            res.status(200).json({message: "Entry received successfully", subscribed: true, guild});
-        } else {
-            res.status(200).json({message: "Registered, but not subscribed", subscribed: false, guild});
-        }
-    });
+    res.status(200).json({message: "Entry received successfully", subscribed: true});
 });
-
 
 
 const update_is_subed = async () => {
