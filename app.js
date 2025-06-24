@@ -30,12 +30,7 @@ app.get("/help", (req, res) => {
     res.render("help");
 });
 
-app.get("/auth/twitch/callback", async (req, res) => {
-    const code = req.query.code;
-    if (!code) {
-        res.send("Authentication error, check console");
-        return;
-    }
+async function processTwitchAuthCode(code) {
     const data = await fetchJSON("https://id.twitch.tv/oauth2/token", {
         method: "POST",
         headers: {"Content-Type": "application/x-www-form-urlencoded"},
@@ -47,10 +42,47 @@ app.get("/auth/twitch/callback", async (req, res) => {
             redirect_uri
         })
     });
+
+    if (!data?.access_token) {
+        console.error("Failed to get token", data);
+        return;
+    }
+
     const expiresAt = Date.now() + data.expires_in * 1000 - 10;
     const userId = (await getTwitchUsersDataWithToken(data.access_token)).id;
+
     await addNewUsersTokens(userId, data.access_token, data.refresh_token, expiresAt);
-    res.render("callback", {token: data.access_token});
+    console.log(`Processed auth for user ${userId}`);
+}
+
+app.get("/auth/twitch/callback", async (req, res) => {
+    try {
+        const code = req.query.code;
+        if (!code) {
+            res.send("Authentication error, check console");
+            return;
+        }
+        const data = await fetchJSON("https://id.twitch.tv/oauth2/token", {
+            method: "POST",
+            headers: {"Content-Type": "application/x-www-form-urlencoded"},
+            body: new URLSearchParams({
+                client_id: env.client_id,
+                client_secret: env.client_secret,
+                code,
+                grant_type: "authorization_code",
+                redirect_uri
+            })
+        });
+        const expiresAt = Date.now() + data.expires_in * 1000 - 10;
+        const userId = (await getTwitchUsersDataWithToken(data.access_token)).id;
+        await addNewUsersTokens(userId, data.access_token, data.refresh_token, expiresAt);
+        res.render("callback", {token: data.access_token});
+    } catch (error) {
+        res.send("Authentication error, please let the auto redirect change the page by itself <a href='/'>GO BACK</a>");
+
+
+    }
+
 });
 
 app.post("/api/java-entry", async (req, res) => {
