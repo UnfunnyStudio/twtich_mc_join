@@ -37,6 +37,24 @@ export const getListOfAllUsersTwitchDetails = async () => {
     });
 };
 
+export const getUsersTwitchDetails = async (twitch_token) => {
+    return new Promise((resolve, reject) => {
+        dbConn.query(
+            `SELECT id, twitch_id, twitch_token, twitch_refresh_token, twitch_refresh_epoc
+             FROM users WHERE twitch_token = ? LIMIT 1`,
+            [twitch_token],
+            (err, results) => {
+                if (err) {
+                    console.error(`[DB ERROR] failed to get users twitch data`, err);
+                    return reject(err);
+                }
+
+                resolve(results);
+            }
+        );
+    });
+};
+
 export const updateRefreshAccessToken = async (id, twitch_token, twitch_refresh_token, twitch_refresh_epoc) => {
     return new Promise((resolve, reject) => {
         dbConn.query(

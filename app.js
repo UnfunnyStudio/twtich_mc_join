@@ -4,7 +4,7 @@ import {
     addNewUsersTokens,
     getIsUserSubTierFromDb,
     getListOfAllUsersTwitchDetails,
-    getListOfStreamers, insertUserSubByTwitchAndStreamer,
+    getListOfStreamers, getUsersTwitchDetails, insertUserSubByTwitchAndStreamer,
     removeUserSub, updateMinecraftUuid, updateUserSubTierByTwitchAndStreamer
 } from "./src/dbCalls.js";
 import {
@@ -67,9 +67,9 @@ app.post("/api/java-entry", async (req, res) => {
 
     console.log(await updateMinecraftUuid(player_data.id, twitch_token));
 
+    await updateIsSubed((await getUsersTwitchDetails(twitch_token)));
+
     res.status(200).json({message: "Entry received successfully", subscribed: true});
-
-
 });
 
 app.post("/api/bedrock-entry", async (req, res) => {
@@ -86,19 +86,16 @@ app.post("/api/bedrock-entry", async (req, res) => {
 
     console.log(await updateMinecraftUuid(bedrock_uuid, twitch_token, true));
 
+    await updateIsSubed((await getUsersTwitchDetails(twitch_token)));
+
     res.status(200).json({message: "Entry received successfully", subscribed: true});
 });
 
 
-const update_is_subed = async () => {
-    // get list of streamers
+const updateIsSubed = async (usersTwitchDetails) => {
     const streamerUsernames = await getListOfStreamers();
-    let hasGotStreamerIds = false;
     let streamerIds = [];
-
-    // get all users twitch details
-    const usersTwitchDetails = await getListOfAllUsersTwitchDetails();
-
+    let hasGotStreamerIds = false;
     for (const user of usersTwitchDetails) {
         let {id, twitch_id, twitch_token, twitch_refresh_token, twitch_refresh_epoc} = user;
         const newId = await refreshAccessToken(id, twitch_refresh_token, twitch_refresh_epoc);
@@ -133,10 +130,14 @@ const update_is_subed = async () => {
         }
 
     }
+}
 
+const update_is_subed = async () => {
+    const usersTwitchDetails = await getListOfAllUsersTwitchDetails();
+    await updateIsSubed(usersTwitchDetails);
 
 }
 update_is_subed();
-setInterval(update_is_subed, 1000 * 60 * 60);
+setInterval(update_is_subed, 1000 * 60 * 30);
 
 app.listen(port, () => console.log(`App listening on port ${port}`));
