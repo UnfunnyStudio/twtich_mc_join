@@ -76,7 +76,6 @@ export const checkSub = async (broadcaster_id, twitch_id, access_token) => {
 export const getStreamersIds = async (usernames, token) => {
     const streamerId = [];
     for (const streamerUsername of usernames) {
-        if (streamerUsername === "nosub") {continue}
         streamerId.push((await getTwitchUsersData(streamerUsername, token)).id);
     }
     return streamerId;
